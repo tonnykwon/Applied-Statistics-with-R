@@ -1,0 +1,172 @@
+---
+title: "Chpater 12 Analysis of Variances"
+author: "Kwon, YoungJu"
+date: "2018년 6월 26일"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(faraway)
+plot(coag~diet, data =coagulation, col=2:5)
+```
+
+```{r}
+coag_aov = aov(coag~diet, data=coagulation)
+summary(coag_aov)
+```
+```{r}
+diets = data.frame(diet= unique(coagulation$diet))
+data.frame(diets, coag= predict(coag_aov, diets))
+```
+- Factor vairables
+When performing ANOVA, be sure the grouping variable is a factor varaible. If not, your result will be a linear regression
+```{r}
+set.seed(42)
+response = rnorm(15)
+group = c(rep(1,5), rep(2,5), rep(3,5))
+bad = data.frame(response,group)
+summary(aov(response~group, data=bad))
+```
+```{r}
+good = data.frame(response, group = as.factor(group))
+summary(aov(response~group, data=good))
+```
+
+- Some Simulation
+```{r}
+library(broom)
+
+sim_anova = function(n=10, mu_a = 0, mu_b = 0, mu_c = 0, mu_d = 0, sigma = 1, stat = TRUE){
+  # create data from one-way ANOVA model with four groups of equal size
+  
+  sim_data = data.frame(
+    response = c(rnorm(n=n, mean=mu_a, sd= sigma),
+                 rnorm(n=n, mean=mu_b, sd= sigma),
+                 rnorm(n=n, mean=mu_c, sd= sigma),
+                 rnorm(n=n, mean=mu_d, sd= sigma)),
+    group = c(rep("A", times = n), rep("B", times=n),
+              rep("C", times=n), rep("D", times = n))
+    )
+  
+  # obtain F-statstic and p-value for testing difference of means
+  aov_results = aov(response ~group, data= sim_data)
+  f_stat = glance(aov_results)$stat
+  p_val = glance(aov_results)$p.val
+  
+  ifelse(stat, f_stat, p_val)
+}
+
+f_stats = replicate(n = 5000, sim_anova(stat = TRUE))
+hist(f_stats, breaks = 100, prob = TRUE, border = "dodgerblue", main = "Empirical Distribution of F")
+curve(df(x, df1 = 4 - 1, df2 = 40 - 4), col = "darkorange", add = TRUE, lwd = 2)
+```
+
+- Power
+$$ Power = P(Reject H_{0} | H_{0} False ) $$
+Effect size
+Noise level
+Significance level(alpha)
+Sample size
+Balanced design
+
+```{r}
+p_vals = replicate(n = 1000, sim_anova(mu_a=-1, mu_b = 0, mu_c = 0, mu_d=1
+                                       ,sigma = 1.5, stat=FALSE))
+mean(p_vals<0.05)
+```
+```{r}
+mean(p_vals<0.01)
+```
+```{r}
+p_vals = replicate(n = 1000, sim_anova(mu_a = -2, mu_b = 0, mu_c = 0, mu_d = 2, 
+                                     sigma = 2.0, stat = FALSE))
+mean(p_vals < 0.05)
+```
+
+- Post Hoc Testing
+Test all possible comparisons of two means
+
+```{r}
+with(coagulation, pairwise.t.test(coag, diet, p.adj= "none"))
+```
+
+- Two-Way Anova
+
+$$ y_{ijk} = \mu +\alpha_{i}+\beta_{j}+(\alpha\beta)_{ij} + \epsilon_{ijk}$$
+
+Rats posison: 3 levels
+Rats treat: 4 levels
+```{r}
+par(mfrow = c(1,2))
+with(rats, interaction.plot(poison, treat, time ,lwd =2, col=1:4))
+with(rats, interaction.plot(treat, poison, time, lwd=2, col=1:3))
+```
+interaction.plot function help us visualize the effect of one factor, as we move through the lvels of another factor.
+
+If there is not interaction, we would expect to see parallel lines.
+Thus, there can be an effect on the response, but the difference between the levels of the other factor should still be the same.
+
+```{r}
+rats_int = aov(time~poison * treat, data=rats) # interaction model
+rats_add = aov(time~poison + treat, data= rats) # additive model
+rats_pois = aov(time~poison, data=rats) # single factor m
+rats_treat = aov(time~treat, data= rats) # single factor m
+rats_null = aov(time~1, data= rats) # null model
+
+rats_table = expand.grid(poison= unique(rats$poison),
+                         treat = unique(rats$treat))
+rats_table
+```
+```{r}
+matrix(paste0(rats_table$poison, "-", 
+            rats_table$treat),4,3, byrow=TRUE)
+```
+
+```{r}
+get_est_means = function(model, table){
+  mat = matrix(predict(model, table), nrow =4, ncol=3, byrow=TRUE)
+  colnames(mat) = c("I", "II", "III")
+  rownames(mat) = c("A", "B","C","D")
+  mat
+}
+```
+```{r}
+knitr::kable(get_est_means(model=rats_int, table=rats_table))
+knitr::kable(get_est_means(model=rats_add, rats_table))
+```
+```{r}
+additive_means = get_est_means(model = rats_add, table = rats_table)
+additive_means["A",] - additive_means["B",]
+
+interaction_means = get_est_means(model = rats_int, table = rats_table)
+interaction_means["A",] - interaction_means["B",]
+```
+
+```{r}
+knitr::kable(get_est_means(model = rats_pois, table = rats_table))
+knitr::kable(get_est_means(model = rats_treat, table = rats_table))
+knitr::kable(get_est_means(model = rats_null, table = rats_table))
+
+```
+Model Hierarchy
+interaction test
+```{r}
+print("interaction model")
+summary(aov(time ~ poison * treat, data = rats))
+
+
+print("additive model")
+TukeyHSD(aov(time ~ poison + treat, data = rats))
+```
+
+
+
+
+
+
+
+
