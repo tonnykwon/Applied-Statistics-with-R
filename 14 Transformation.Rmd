@@ -8,7 +8,6 @@ output: html_document
 # 1. Response Transformation
 
 ```{r}
-setwd("C:/Users/tony/Documents/MCS/STAT 420/week8 13, 14, 17")
 initech = read.csv("initech.csv")
 
 plot(salary~ years, data= initech, col="grey", pch=20, cex=1.5, main = "Salaries at Initech, by Seniority")
@@ -127,7 +126,6 @@ abline(h = 0, lty = 2, col = "darkorange", lwd = 2)
 # 2. Predictor Transformation
 
 ```{r}
-setwd("C:/Users/tony/Documents/MCS/STAT 420/week8 13, 14, 17")
 autompg = read.csv("auto-mpg.csv")
 colnames(autompg)[-1]<-c("cyl", "disp","hp","wt","acc","year", "origin", "domestic")
 autompg$hp<- as.numeric(autompg$hp)
@@ -201,15 +199,14 @@ fit = lm(y ~ x + I(x ^ 2))
 #summary(fit)
 fit_perf = lm(y ~ x + I(x ^ 2) + I(x ^ 3) + I(x ^ 4) + I(x ^ 5) + I(x ^ 6)
                + I(x ^ 7) + I(x ^ 8) + I(x ^ 9) + I(x ^ 10))
-summary(fit_perf)
-```
-```{r}
+
 xplot = seq(0, 10, by = 0.1)
 lines(xplot, predict(fit, newdata = data.frame(x = xplot)),
       col = "dodgerblue", lwd = 2, lty = 1)
 lines(xplot, predict(fit_perf, newdata = data.frame(x = xplot)),
       col = "darkorange", lwd = 2, lty = 2)
 ```
+
 ```{r}
 econ = read.csv("fuel_econ.csv")
 plot_econ_curve = function(model){
