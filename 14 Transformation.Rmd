@@ -1,0 +1,323 @@
+---
+title: "Chapter 14 Transformation"
+author: "kwon"
+date: "2018년 6월 29일"
+output: html_document
+---
+
+# 1. Response Transformation
+
+```{r}
+setwd("C:/Users/tony/Documents/MCS/STAT 420/week8 13, 14, 17")
+initech = read.csv("initech.csv")
+
+plot(salary~ years, data= initech, col="grey", pch=20, cex=1.5, main = "Salaries at Initech, by Seniority")
+```
+```{r}
+initech_fit = lm(salary ~ years, data= initech)
+summary(initech_fit)
+
+plot(salary~years, data= initech, col="grey", pch=20, cex=1.5, main ="Salaries at Initech")
+abline(initech_fit, col="darkorange", lwd=2)
+```
+
+```{r fig.width=10}
+par(mfrow= c(1,2))
+
+plot(fitted(initech_fit), resid(initech_fit), col="grey", pch=20, xlab="Fitted", ylab="Residuals", main= " Fitted versus Residuals")
+abline(h=0, col="darkorange", lwd=2)
+
+qqnorm(resid(initech_fit), main="Normal Q-Q Plot", col= "darkgrey")
+qqline(resid(initech_fit), col ="dodgerblue", lwd=2)
+```
+
+## 1.1 Variance Stablizing Transformations
+$$ \epsilon \sim N(0, \sigma^2) $$
+Thus,
+$$ Var[Y| X=x] = \sigma^2$$
+However, here we see that the vairance is a function of the mean
+$$ Var[Y| X=x] = h(E[Y|X=x])) $$
+In order to corret for this, we would like to find some funciton of Y,
+$$ Var[g(Y) | X =x ]= c $$
+This is called a variance stabilizing transformation(VST). \
+A common VST when we see increasing vairance in a fitted versus residuals plot is log(Y).
+$$ log(Y_i) = \beta_0 + \beta_1x_i + \epsilon_i$$
+$$ Y_i = exp(\beta_0 + \beta_1 x_i)exp(\epsilon_i)$$
+```{r}
+initech_fit_log = lm(log(salary)~years, data=initech)
+
+plot(log(salary)~ years, data=initech, col = "grey", pch =20, cex = 1.5, main ="Salaries at Initech, By Seniority")
+abline(initech_fit_log, col="darkorange", lwd=2)
+```
+
+```{r}
+plot(salary~years, data= initech, col="grey", pch = 20, cex = 1.5, main = "Salaries at Initech, By Seniority")
+curve(exp(initech_fit_log$coef[1] + initech_fit_log$coef[2]*x), from = 0, to = 30, add= TRUE, col ="darkorange", lwd=2)
+```
+```{r}
+par(mfrow = c(1, 2))
+
+plot(fitted(initech_fit_log), resid(initech_fit_log), col = "grey", pch = 20,
+     xlab = "Fitted", ylab = "Residuals", main = "Fitted versus Residuals")
+abline(h = 0, col = "darkorange", lwd = 2)
+
+qqnorm(resid(initech_fit_log), main = "Normal Q-Q Plot", col = "darkgrey")
+qqline(resid(initech_fit_log), col = "dodgerblue", lwd = 2)
+```
+
+```{r}
+sqrt(mean(resid(initech_fit)^2))
+sqrt(mean((initech$salary - exp(fitted(initech_fit_log))) ^ 2))
+```
+
+## 1.2 Box-Cox Transformations
+$$ g_\lambda(y) =  \left\{
+\begin{array}{lr}\displaystyle\frac{y^\lambda - 1}{\lambda} &  \lambda \neq 0\\
+        & \\
+       \log(y) &  \lambda = 0
+     \end{array}
+   \right.
+$$
+\[
+  L(\lambda) = -\frac{n}{2}\log(RSS_\lambda / n) + (\lambda -1)\sum \log(y_i).
+\]
+
+```{r}
+library(MASS)
+library(faraway)
+
+savings_model = lm(sr~., data=savings)
+boxcox(savings_model, plotit=TRUE)
+```
+
+```{r}
+boxcox(savings_model, plotit=TRUE, lambda = seq(0.5, 1.5, by=0.1))
+```
+```{r}
+plot(fitted(savings_model), resid(savings_model), col = "dodgerblue",
+     pch = 20, cex = 1.5, xlab = "Fitted", ylab = "Residuals")
+abline(h = 0, lty = 2, col = "darkorange", lwd = 2)
+
+library(lmtest)
+bptest(savings_model)
+shapiro.test(resid(savings_model))
+```
+
+```{r}
+gala_model = lm(Species ~ Area + Elevation + Nearest + Scruz + Adjacent, data = gala)
+plot(fitted(gala_model), resid(gala_model), col = "dodgerblue",
+     pch = 20, cex = 1.5, xlab = "Fitted", ylab = "Residuals")
+abline(h = 0, lty = 2, col = "darkorange", lwd = 2)
+```
+
+```{r}
+boxcox(gala_model, lambda = seq(-0.25, 0.75, by = 0.05), plotit = TRUE)
+# lambda = 0.3
+```
+which suggests a transformation of the form
+$$ \frac{y^\lambda - 1}{\lambda} = \frac{y^0.3 - 1}{0.3}$$
+```{r}
+gala_model_cox = lm((((Species^0.3)-1)/0.3 )~Area + Elevation + Nearest + Scruz + Adjacent, data = gala )
+
+plot(fitted(gala_model_cox), resid(gala_model_cox), col = "dodgerblue",
+     pch = 20, cex = 1.5, xlab = "Fitted", ylab = "Residuals")
+abline(h = 0, lty = 2, col = "darkorange", lwd = 2)
+```
+
+# 2. Predictor Transformation
+
+```{r}
+setwd("C:/Users/tony/Documents/MCS/STAT 420/week8 13, 14, 17")
+autompg = read.csv("auto-mpg.csv")
+colnames(autompg)[-1]<-c("cyl", "disp","hp","wt","acc","year", "origin", "domestic")
+autompg$hp<- as.numeric(autompg$hp)
+str(autompg)
+```
+
+```{r}
+par(mfrow= c(1,2))
+mpg_hp = lm(mpg~hp, data=autompg)
+plot(mpg~hp, data=autompg, col= "dodgerblue", pch = 20, cex= 1.5)
+abline(mpg_hp, col = "darkorange", lwd=2)
+plot(fitted(mpg_hp), resid(mpg_hp), col="dodgerblue" , pch = 20, cex=1.5,
+     xlab= "Fitted", ylab="Residuals")
+abline(h=0, lty=2, col="darkorange", lwd= 2)
+```
+
+## 2.1 Polynomials
+
+```{r}
+marketing = read.csv("marketing.csv")
+plot(sales ~ advert, data = marketing, 
+     xlab = "Advert Spending (in $100,00)", ylab = "Sales (in $100,00)",
+     pch = 20, cex = 2, col="grey")
+```
+$$ Y_i = \beta_0 + \beta_1 x_i + \beta_2 + x_i ^2 + \epsilon_i$$
+```{r}
+mark_mod = lm(sales~ advert, data= marketing)
+summary(mark_mod)
+
+mark_mod_poly2 = lm(sales~ advert+ I(advert^2), data= marketing)
+summary(mark_mod_poly2)
+```
+```{r}
+n = length(marketing$advert)
+X = cbind(rep(1, n), marketing$advert, marketing$advert ^ 2)
+solve(t(X) %*% X) %*% t(X) %*% marketing$sales
+
+```
+```{r}
+mark_mod_poly3 = lm(sales ~ advert + I(advert ^ 2) + I(advert ^ 3), data = marketing)
+summary(mark_mod_poly3)
+```
+```{r}
+plot(sales ~ advert, data = marketing, 
+     xlab = "Advert Spending (in $100,00)", ylab = "Sales (in $100,00)",
+     pch = 20, cex = 2)
+abline(mark_mod, lty = 2, col = "green", lwd = 2)
+xplot = seq(0, 16, by = 0.01)
+lines(xplot, predict(mark_mod_poly2, newdata = data.frame(advert = xplot)),
+      col = "blue", lwd = 2)
+lines(xplot, predict(mark_mod_poly3, newdata = data.frame(advert = xplot)),
+      col = "red", lty = 3, lwd = 3)
+```
+
+```{r}
+library(ggplot2)
+ggplot(data= marketing, aes(x= advert, y=sales)) +
+  stat_smooth(method = "lm", se = FALSE, color = "green", formula = y ~ x) +
+  stat_smooth(method = "lm", se = FALSE, color = "blue", formula = y ~ x + I(x ^ 2)) +
+  stat_smooth(method = "lm", se = FALSE, color = "red", formula = y ~ x + I(x ^ 2)+ I(x ^ 3)) +
+  geom_point(colour = "black", size = 3)
+```
+
+
+```{r}
+set.seed(1234)
+x = seq(0, 10)
+y = 3 + x + 4 * x ^ 2 + rnorm(11, 0, 20)
+plot(x, y, ylim = c(-300, 400), cex = 2, pch = 20)
+fit = lm(y ~ x + I(x ^ 2))
+#summary(fit)
+fit_perf = lm(y ~ x + I(x ^ 2) + I(x ^ 3) + I(x ^ 4) + I(x ^ 5) + I(x ^ 6)
+               + I(x ^ 7) + I(x ^ 8) + I(x ^ 9) + I(x ^ 10))
+summary(fit_perf)
+```
+```{r}
+xplot = seq(0, 10, by = 0.1)
+lines(xplot, predict(fit, newdata = data.frame(x = xplot)),
+      col = "dodgerblue", lwd = 2, lty = 1)
+lines(xplot, predict(fit_perf, newdata = data.frame(x = xplot)),
+      col = "darkorange", lwd = 2, lty = 2)
+```
+```{r}
+econ = read.csv("fuel_econ.csv")
+plot_econ_curve = function(model){
+  plot(mpg ~ mph, data = econ, xlab = "Speed (Miles per Hour)", 
+       ylab = "Fuel Efficiency (Miles per Gallon)", col = "dodgerblue", 
+       pch = 20, cex =2)
+  xplot = seq(10, 75, by = 0.1)
+  lines(xplot, predict(model, newdata = data.frame(mph = xplot)),
+        col = "darkorange", lwd = 2, lty = 1)
+}
+
+fit1 = lm(mpg ~ mph, data = econ)
+par(mfrow=c(1,2))
+plot_econ_curve(fit1)
+plot(fitted(fit1), resid(fit1), xlab="Fitted", ylab="Residuals", col= "dodgerblue", pch = 20, cex=2)
+abline(h=0, col="darkorange", lwd=2)
+```
+
+```{r}
+fit2 = lm(mpg~mph+I(mph^2), data= econ)
+par(mfrow=c(1,2))
+plot_econ_curve(fit2)
+plot(fitted(fit2), resid(fit2), xlab="Fitted", ylab="Residuals", col= "dodgerblue", pch = 20, cex=2)
+abline(h=0, col="darkorange", lwd=2)
+```
+```{r}
+fit3 = lm(mpg~mph +I(mph^2)+I(mph^3), data=econ)
+par(mfrow=c(1,2))
+plot_econ_curve(fit3)
+plot(fitted(fit3), resid(fit3), xlab="Fitted", ylab="Residuals", col= "dodgerblue", pch = 20, cex=2)
+abline(h=0, col="darkorange", lwd=2)
+```
+```{r}
+fit4 = lm(mpg ~ mph + I(mph ^ 2) + I(mph ^ 3) + I(mph ^ 4), data = econ)
+summary(fit4)
+par(mfrow = c(1, 2))
+plot_econ_curve(fit4)
+plot(fitted(fit4), resid(fit4), xlab = "Fitted", ylab = "Residuals", 
+     col = "dodgerblue", pch = 20, cex =2)
+  abline(h = 0, col = "darkorange", lwd = 2)
+```
+```{r}
+fit6 = lm(mpg ~ mph + I(mph ^ 2) + I(mph ^ 3) + I(mph ^ 4) + I(mph ^ 5) + I(mph^6), data = econ)
+summary(fit6)
+par(mfrow = c(1, 2))
+plot_econ_curve(fit6)
+plot(fitted(fit6), resid(fit6), xlab = "Fitted", ylab = "Residuals", 
+     col = "dodgerblue", pch = 20, cex =2)
+  abline(h = 0, col = "darkorange", lwd = 2)
+```
+```{r}
+anova(fit4, fit6)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
