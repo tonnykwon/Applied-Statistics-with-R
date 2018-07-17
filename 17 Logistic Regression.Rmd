@@ -1,0 +1,458 @@
+---
+title: "17 Logistic Regression"
+author: "kwon"
+date: "2018년 7월 11일"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Chapter 17 Logistic Regression
+
+So far we have considered models for numeric response variables.
+
+## 1. Generalized Linear Models
+
+This linear combination is what made a linear model "linear".
+$$ Y|X = x \sim N(\beta_0 + \beta_1 x_1 + ... + \beta_{p-1}x_{p-1}, \sigma^2) $$
+Now we'll allow for other distribution instead of a normal distribution. Also, instead of conditional mean being linear combination of the predictors, it can be some function of a linear combination of the predictors. \
+In general, a generalized linear model has three parts: \
+* A **distribution** of the response conditioned on the predictors. \
+* A **linear combination** of the p-1 predictors,
+$$ \eta(x) = \beta_0 + \beta_1 x_1 + ... + \beta_{p-1}x_{p-1} $$
+* A **link** function, g(), that defines how $\eta(x)$, is related to the mean of the response conditioned on the predictors, $E[Y| X=x]$.
+$$ \eta(x) = g(E[Y| X=x])$$
+
+The following table summarizes three examples of a generalized linear model:
+
+|                 |Linear Regression | Poisson Regression | Logistic Regression |
+|-----------------|------------------|--------------------|---------------------|
+| $Y \mid {\bf X} = {\bf x}$ | $N(\mu({\bf x}), \sigma^2)$    | $\text{Pois}(\lambda({\bf x}))$          | $\text{Bern}(p({\bf x}))$                                              |
+| **Distribution Name**                           | Normal                         | Poisson                                  | Bernoulli (Binomial)                                                   |
+| $\text{E}[Y \mid {\bf X} = {\bf x}]$            | $\mu({\bf x})$                 | $\lambda({\bf x})$                       | $p({\bf x})$                                                           |
+| **Support**                                     | Real: $(-\infty, \infty)$      | Integer: $0, 1, 2, \ldots$               | Integer: $0, 1$                                                        |
+| **Usage**                                       | Numeric Data                   | Count (Integer) Data                     | Binary (Class ) Data                                            |
+| **Link Name**                                   | Identity                       | Log                                      | Logit                                                                  |
+| **Link Function**                               | $\eta({\bf x}) = \mu({\bf x})$ | $\eta({\bf x}) = \log(\lambda({\bf x}))$ | $\eta({\bf x}) = \log \left(\frac{p({\bf x})}{1 - p({\bf x})} \right)$          |
+| **Mean Function**                               | $\mu({\bf x}) = \eta({\bf x})$ | $\lambda({\bf x}) = e^{\eta({\bf x})}$   | $p({\bf x}) = \frac{e^{\eta({\bf x})}}{1 + e^{\eta({\bf x})}} = \frac{1}{1 + e^{-\eta({\bf x})}}$ |
+
+So, in general, GLMs relate the mean of the response to a linear combination of the predictors $\eta(x)$, through the use of a link function $g()$.
+
+## Binary Response
+
+Now we define the **logistic regression** model.
+$$
+\log\left(\frac{p({\bf x})}{1 - p({\bf x})}\right) = \beta_0 + \beta_1 x_1 + \ldots  + \beta_{p - 1} x_{p - 1}
+$$
+
+The left hand side is called the **log odds**. \
+Essentially, the log odds are the logit transform applied to p(x)
+$$ \text{logit}(\xi) = \log\left(\frac{\xi}{1 - \xi}\right) $$
+We also define the inverse logit,
+$$
+\text{logit}^{-1}(\xi) = \frac{e^\xi}{1 + e^{\xi}} = \frac{1}{1 + e^{-\xi}}
+$$
+By applying the inverse logit transformation, we obtain p(x) as follows,
+$$
+p({\bf x}) = P[Y = 1 \mid {\bf X} = {\bf x}] = \frac{e^{\beta_0 + \beta_1 x_{1} + \cdots + \beta_{p-1} x_{(p-1)}}}{1 + e^{\beta_0 + \beta_1 x_{1} + \cdots + \beta_{p-1} x_{(p-1)}}}
+$$
+
+
+### 2.1 Fitting Logistic Regression
+
+To fit this model, that is estimate the beta parameters, we will use maximum likelihood.
+$$ L(\beta) = \prod_{i=1}^n P[Y_i = y_i | X_i = x_i] $$
+$$ L(\beta) = \prod_{i=1}^n p(x_i)^{y_i}(1-p(x_i))^{(1-y_i)} $$
+$$ L(\beta) = \prod_{i:y_i=1}p(x_i)\prod_{j:y_j=0}(1-p(x_j)) $$
+$$
+L(\boldsymbol{{\beta}}) = \prod_{i : y_i = 1}^{} \frac{e^{\beta_0 + \beta_1 x_{i1} + \cdots + \beta_{p-1} x_{i(p-1)}}}{1 + e^{\beta_0 + \beta_1 x_{i1} + \cdots + \beta_{p-1} x_{i(p-1)}}} \prod_{j : y_j = 0}^{} \frac{1}{1 + e^{\beta_0 + \beta_1 x_{j1} + \cdots + \beta_{p-1} x_{j(p-1)}}}
+$$
+Unfortunately, unlike ordinary linear regression, there is no analytical solution for this maximization problem. Instead, it will need to be solved numerically.
+
+### 2.2 Fitting Issues
+
+We should note that, if there exists some $\beta^*$ such that
+
+$$
+{\bf x_i}^{\top} \boldsymbol{{\beta}^*} > 0 \implies y_i = 1
+$$
+
+and
+
+$$
+{\bf x_i}^{\top} \boldsymbol{{\beta}^*} < 0 \implies y_i = 0
+$$
+
+for all observations, then the MLE is not unique. Such data is said to be separable.
+
+
+### 2.3 Simulation Examples
+```{r}
+sim_logistic_data = function(sample_size = 25, beta_0 = -2, beta_1 = 3) {
+  x = rnorm(n = sample_size)
+  eta = beta_0 + beta_1 * x
+  p = 1 / (1 + exp(-eta))
+  y = rbinom(n = sample_size, size = 1, prob = p)
+  data.frame(y, x)
+}
+```
+To investigate, let's simulate data from the following model:
+
+$$
+\log\left(\frac{p({\bf x})}{1 - p({\bf x})}\right) = -2 + 3 x
+$$
+
+```{r}
+set.seed(1)
+example_data = sim_logistic_data()
+head(example_data)
+```
+
+```{r}
+# ordinary linear regression
+fit_lm  = lm(y ~ x, data = example_data)
+# logistic regression
+fit_glm = glm(y ~ x, data = example_data, family = binomial)
+
+# more detailed call to glm for logistic regression
+fit_glm = glm(y ~ x, data = example_data, family = binomial(link = "logit"))
+
+plot(y ~ x, data = example_data, 
+     pch = 20, ylab = "Estimated Probability", 
+     main = "Ordinary vs Logistic Regression")
+grid()
+abline(fit_lm, col = "darkorange")
+curve(predict(fit_glm, data.frame(x), type = "response"), 
+      add = TRUE, col = "dodgerblue", lty = 2)
+legend("topleft", c("Ordinary", "Logistic", "Data"), lty = c(1, 2, 0), 
+       pch = c(NA, NA, 20), lwd = 2, col = c("darkorange", "dodgerblue", "black"))
+```
+For both ordinary and logistic line, we are plotting $\hat E[Y |X=x]$, the estimated mean, which for a binary response happens to be an estimate of P[Y=1 | X=x].
+
+```{r}
+round(coef(fit_glm),1)
+```
+
+Out eistimated model is then:
+$$ log(\frac{\hat p(x)}{1-\hat p(x)}) = -2.3 + 3.7x$$
+Because we are not directly estimating the mean, but instead a function of the mean, we need to be careful with out interpretaion of $\beta_1 = 3.7$. This means that, for a unit increase in x, the log odds change by 3.7. Since $\beta_1$ is positive, as we increase x we also increase $\hat p(x)$.
+\
+For example:
+$$
+p({\bf x}) = P[Y = 1 \mid {\bf X} = 0] = \frac{e^{-2.3 + 3.7 (0) }}
+{1 + e^{-2.3 + 3.7 (0)}}
+\approx 0.0911
+$$
+$$
+p({\bf x}) = P[Y = 1 \mid {\bf X} = 1] = \frac{e^{-2.3 + 3.7 (1) }}
+{1 + e^{-2.3 + 3.7 (1)}}
+\approx 0.8021
+$$
+
+```{r}
+set.seed(1)
+example_data = sim_logistic_data(sample_size =50, beta_0 =1, beta_1 = -4)
+
+fit_glm = glm(y ~ x, data = example_data, family = binomial)
+plot(y ~ x, data = example_data, 
+     pch = 20, ylab = "Estimated Probability", 
+     main = "Logistic Regression, Decreasing Probability")
+grid()
+curve(predict(fit_glm, data.frame(x), type = "response"), 
+      add = TRUE, col = "dodgerblue", lty = 2)
+legend("bottomleft", c("Estimated Probability", "Data"), lty = c(2, 0), 
+       pch = c(NA, 20), lwd = 2, col = c("dodgerblue", "black"))
+
+```
+
+In case when $\beta_1$ is negative, we see $\hat p(x)$ decreases, as x increases.
+
+```{r}
+sim_quadratic_logistic_data = function(sample_size=25){
+  x = rnorm(n=sample_size)
+  eta = -1.5 + 0.5* x +x^2
+  p = 1 / (1+exp(-eta))
+  y = rbinom(n = sample_size, size =1, prob=p)
+  data.frame(y,x)
+}
+```
+Which is:
+$$ log(\frac{\hat p(x)}{1-\hat p(x)}) = -1.5 + 0.5x+x^2$$
+$$ Y_i | X_i = x_i \sim Bern(p_i)$$
+
+$$p_i = p(x_i) = \frac{1}{1+e^{-\eta(x_i)}}$$
+$$ \eta(x_i) = -1.5 +0.5x_i + x_i ^2 $$
+
+```{r}
+set.seed(42)
+n = 50
+sim_quadratic_logistic_data()
+example_data = sim_quadratic_logistic_data(n)
+
+fit_glm = glm(y~x + I(x^2), data=example_data, family=binomial )
+
+plot(y ~ x, data = example_data, 
+     pch = 20, ylab = "Estimated Probability", 
+     main = "Logistic Regression, Quadratic Relationship")
+grid()
+curve(predict(fit_glm, data.frame(x), type = "response"), 
+      add = TRUE, col = "dodgerblue", lty = 2)
+legend("left", c("Prob", "Data"), lty = c(2, 0), 
+       pch = c(NA, 20), lwd = 2, col = c("dodgerblue", "black"))
+```
+
+## 3. Working with Logistic Regression
+
+As the ordinary linear regression model and the logistic model both use a linear combination of the predictors, they work in very similar way.
+* Testing for a single $\beta$ parameter
+* Testing for a set of $\beta$ parameter
+* Formula specification in R
+* Interpreting parameters and estimates
+* Confidence intervals for parameters
+* Confidence intervals for mean response
+* Variable selection
+
+### 3.1 Testing with GLMs
+
+Same hypothesis testing
+
+### 3.2 Wald Test
+$$
+H_0: \beta_j = 0 \quad \text{vs} \quad H_1: \beta_j \neq 0
+$$
+
+For the logistic regression model,
+$$
+\log\left(\frac{p({\bf x})}{1 - p({\bf x})}\right) = \beta_0 + \beta_1 x_1 + \ldots  + \beta_{p - 1} x_{p - 1}
+$$
+we can perform a test of
+$$
+H_0: \beta_j = 0 \quad \text{vs} \quad H_1: \beta_j \neq 0
+$$
+however, the test statistic and its distribution are no longer t.
+$$
+z = \frac{\hat{\beta}_j - \beta_j}{\text{SE}[\hat{\beta}_j]} \overset{\text{approx}}{\sim} N(0, 1)
+$$
+Now we are performing a z-test, as test statistic is approximated by a standard normal distribution, provided we have a large enough sample.
+
+### 3.2 Likelihood-Ratio Test
+
+Full model:
+$$
+\log\left(\frac{p({\bf x_i})}{1 - p({\bf x_i})}\right) = \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \cdots + \beta_{(p-1)} x_{i(p-1)} + \epsilon_i
+$$
+
+Null model:
+$$
+\log\left(\frac{p({\bf x_i})}{1 - p({\bf x_i})}\right) = \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \cdots + \beta_{(q-1)} x_{i(q-1)} + \epsilon_i
+$$
+
+The difference between these two models can be codified by the null hypothesis of a test.
+$$
+H_0: \beta_q = \beta_{q+1} = \cdots = \beta_{p - 1} = 0.
+$$
+
+We define a test statistic, D,
+$$
+D = -2 \log \left( \frac{L(\boldsymbol{\hat{\beta}_{\text{Null}}})} {L(\boldsymbol{\hat{\beta}_{\text{Full}}})} \right) = 2 \log \left( \frac{L(\boldsymbol{\hat{\beta}_{\text{Full}}})} {L(\boldsymbol{\hat{\beta}_{\text{Null}}})} \right) = 2 \left( \ell(\hat{\beta}_{\text{Full}}) - \ell(\hat{\beta}_{\text{Null}})\right)
+$$
+
+Where L denotes a likelihood and l denotes a log-likelihood. For a large enough sample, this test statistic has an approximate Chi-square distribution,
+$$ D \overset{approx}{\sim} \chi^2_k $$
+This test, $$Likelihood-Ratio Test$$, will be the analogue to the ANOVA F-test for logistic regression.
+
+### 3.4 `SAheart` Example
+```{r}
+library(ElemStatLearn)
+data("SAheart")
+head(SAheart)
+```
+
+$$
+\log\left(\frac{P[\texttt{chd} = 1]}{1 - P[\texttt{chd} = 1]}\right) = \beta_0 + \beta_{\texttt{ldl}} \texttt{ldl}
+$$
+
+```{r}
+chd_mod_ldl = glm(chd ~ ldl, data = SAheart, family = binomial)
+plot(jitter(chd, factor = 0.1) ~ ldl, data = SAheart, pch = 20, 
+     ylab = "Probability of CHD", xlab = "Low Density Lipoprotein Cholesterol")
+grid()
+curve(predict(chd_mod_ldl, data.frame(ldl = x), type = "response"), 
+      add = TRUE, col = "dodgerblue", lty = 2)
+```
+As we can see, as ldl increses, so does the probability of chd.
+```{r}
+coef(summary(chd_mod_ldl))
+```
+```{r}
+chd_mod_additive = glm(chd~., data= SAheart, family = binomial)
+
+-2* as.numeric(logLik(chd_mod_ldl) - logLik(chd_mod_additive))
+```
+```{r}
+#LRT refers likelihood-ratio test
+anova(chd_mod_ldl, chd_mod_additive, test = "LRT")
+```
+```{r}
+chd_mod_selected =step(chd_mod_additive, trace =0)
+coef(chd_mod_selected)
+```
+
+```{r}
+anova(chd_mod_selected, chd_mod_additive, test = "LRT")
+```
+We prefer the selected model.
+
+### 3.5 Confidence Interval
+```{r}
+confint(chd_mod_selected, level=0.99)
+```
+
+By rearranging the results of the Wald test to obtain the Wald confidence interval.
+$$ \hat \beta_j \pm z_{\alpha/2} \cdot SE[\hat \beta_j] $$
+
+
+### 3.6 Confidence Intervals for Mean Response
+
+Confidence intervals for the mean response
+$$
+\frac{\hat{\eta}({\bf x}) - \eta({\bf x})}{\text{SE}[\hat{\eta}({\bf x})]} \overset{\text{approx}}{\sim} N(0, 1)
+$$
+
+$$
+\hat{\eta}({\bf x}) \pm z_{\alpha/2} \cdot \text{SE}[\hat{\eta}({\bf x})]] 
+$$
+
+```{r}
+new_obs = data.frame(
+  sbp = 148.0,
+  tobacco = 5,
+  ldl = 12,
+  adiposity = 31.23,
+  famhist = "Present",
+  typea = 47,
+  obesity = 28.50,
+  alcohol = 23.89,
+  age = 60
+)
+```
+Use `predict()` function to obtain $\hat \eta(x)$
+```{r}
+eta_hat =predict(chd_mod_selected, new_obs, se.fit = TRUE, type = "link")
+eta_hat
+```
+
+```{r}
+z_crit = round(qnorm(0.975), 2)
+round(z_crit, 2)
+```
+```{r}
+eta_hat$fit + c(-1,1)*z_crit * eta_hat$se.fit
+```
+```{r}
+boot::inv.logit(eta_hat$fit + c(-1,1)*z_crit * eta_hat$se.fit)
+```
+
+### 3.7 Formula Syntax
+
+#### 3.7.1 Interactions
+```{r}
+chd_mod_interaction = glm(chd~alcohol + ldl + famhist + typea + age + ldl:famhist, data =SAheart, family = binomial)
+summary(chd_mod_interaction)
+```
+Based on the z-test, the interaction is significant.
+
+#### 3.7.2 Polynomial Terms
+```{r}
+chd_mod_int_quad = glm(chd~alcohol +ldl + famhist +typea +age + ldl:famhist + I(ldl^2), family = binomial, data=SAheart)
+summary(chd_mod_int_quad)
+```
+Even though the syntax notation are the same as `lm()`, the above fits the model
+$$
+\log\left(\frac{p({\bf x})}{1 - p({\bf x})}\right) = 
+\beta_0 +
+\beta_{1}x_{\texttt{alcohol}} +
+\beta_{2}x_{\texttt{ldl}} +
+\beta_{3}x_{\texttt{famhist}} +
+\beta_{4}x_{\texttt{typea}} +
+\beta_{5}x_{\texttt{age}} +
+\beta_{6}x_{\texttt{ldl}}x_{\texttt{famhist}} +
+\beta_{7}x_{\texttt{ldl}}^2
+$$
+### 3.8 Deviance
+
+Unlike the orinary linear regression, the 'deviance' is being reported. **Deviance** compares the model to a saturated model. Essentially, deviance is a generalized residual sum of squred for GLMs. Like RSS, deviance decreased as the model complexity increases.
+```{r}
+deviance(chd_mod_ldl)
+deviance(chd_mod_selected)
+deviance(chd_mod_additive)
+```
+
+## 4. Classification
+
+** Bayes Classifier**,
+$$
+p({\bf x}) = P[Y = 1 \mid {\bf X} = {\bf x}]
+$$
+It minimizes the probability of misclassification by classifying each observation to the class with the highest probability.
+
+### 4.1 `spam` Example
+
+```{r}
+library(kernlab)
+data("spam")
+tibble:: as.tibble(spam)
+```
+```{r}
+set.seed(42)
+spam_idx = sample(nrow(spam), 1000)
+spam_trn = spam[spam_idx,]
+spam_tst = spam[-spam_idx,]
+
+fit_caps = glm(type ~ capitalTotal, 
+               data = spam_trn, family = binomial)
+fit_selected = glm(type ~ edu + money + capitalTotal + charDollar, 
+                   data = spam_trn, family = binomial)
+fit_additive = glm(type ~ ., 
+                   data = spam_trn, family = binomial)
+fit_over = glm(type ~ capitalTotal * (.), 
+               data = spam_trn, family = binomial, maxit = 50)
+
+coef(fit_selected)
+```
+
+### 4.2 Evaluating Classifiers
+
+$$
+\text{Misclass}(\hat{C}, \text{Data}) = \frac{1}{n}\sum_{i = 1}^{n}I(y_i \neq \hat{C}({\bf x_i}))
+$$
+$$
+I(y_i \neq \hat{C}({\bf x_i})) = 
+\begin{cases} 
+  0 & y_i = \hat{C}({\bf x_i}) \\
+  1 & y_i \neq \hat{C}({\bf x_i}) \\
+\end{cases}
+$$
+
+```{r}
+mean(ifelse(predict(fit_caps) > 0 , "spam", "nonspam")!=spam_trn$type)
+mean(ifelse(predict(fit_selected) > 0, "spam", "nonspam") != spam_trn$type)
+mean(ifelse(predict(fit_selected) > 0, "spam", "nonspam") != spam_trn$type)
+mean(ifelse(predict(fit_additive) > 0, "spam", "nonspam") != spam_trn$type)
+mean(ifelse(predict(fit_over) > 0, "spam", "nonspam") != spam_trn$type)
+```
+
+```{r}
+library(boot)
+set.seed(1)
+cv.glm(spam_trn, fit_caps, K=5)$delta[1]
+```
+```{r}
+cv.glm(spam_trn, fit_selected, K = 5)$delta[1]
+cv.glm(spam_trn, fit_additive, K = 5)$delta[1]
+cv.glm(spam_trn, fit_over, K = 5)$delta[1]
+```
+
+
