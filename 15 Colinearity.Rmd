@@ -1,0 +1,265 @@
+---
+title: "week9 15 Colinearity"
+author: "kwon"
+date: "2018년 7월 3일"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Chapter 15 Collinearity
+
+## 1. Exact Collinearity
+```{r}
+gen_exact_collin_data = function(num_samples= 100){
+  x1 = rnorm(n=num_samples, mean=80, sd=10)
+  x2 = rnorm(n= num_samples, mean=70, sd=5)
+  x3 = 2*x1 +4*x2 +3
+  y = 3+ x1 + x2 + rnorm(n=num_samples, mean=0, sd=1)
+  data.frame(y, x1, x2, x3)
+}
+
+set.seed(42)
+exact_collin_data = gen_exact_collin_data()
+head(exact_collin_data)
+```
+```{r}
+exact_collin_fit = lm(y~x1+x2+x3, data= exact_collin_data)
+summary(exact_collin_fit)
+```
+`R` decides to exclude a variable, because if we attempt to find $\hat\beta$ using $(X^TX)^{-1}$, it is not possible, due to the linearly dependency in $X$. \n
+When this happens, we say there is exact collinearity in the dataset.
+
+```{r}
+X = cbind(1, as.matrix(exact_collin_data[,-1]))
+# solve(t(X) %*% X)
+```
+
+```{r}
+fit1 = lm(y~x1+x2, data= exact_collin_data)
+fit2 = lm(y~x1+x3, data= exact_collin_data)
+fit3 = lm(y~x2+x3, data= exact_collin_data)
+
+all.equal(fitted(fit1),fitted(fit2))
+all.equal(fitted(fit2),fitted(fit3))
+all.equal(fitted(fit3),fitted(fit2))
+```
+Their fitted values are all the same, while their estimated coefficients are wildly different.
+```{r}
+coef(fit1)
+coef(fit2)
+coef(fit3)
+```
+The sign of $x_2$ is switched in two of the models(`fit1`, `fit3`). So only `fit1` properly expalins the relationship between the variables, `fit2` and `fit3` still predcit as well as `fit1`, despite the coefficients having little to no meaning.
+
+## 2. Collinearity
+
+```{r}
+library(faraway)
+pairs(seatpos, col = "dodgerblue")
+round(cor(seatpos),2)
+```
+```{r}
+hip_model =lm(hipcenter ~., data=seatpos)
+summary(hip_model)
+```
+
+When predictors are highly correlated, their effects on the response are lessened individually, but together they still explain a large portion of the variation of `hipcenter`. \n
+$R_j^2$ to be the proportion of observed variation in the j-th predictor explained by the other predictors.
+```{r}
+ht_shoes_model = lm(HtShoes~ . -hipcenter, data= seatpos)
+summary(ht_shoes_model)
+```
+
+### 2.1 Variance Inflation Factor.
+
+$$ Var(\hat\beta_j) = \sigma^2C_{jj} = \sigma^2\frac{1}{1-R_j^2}
+\frac{1}{S_{x_j x_j}} $$
+where
+$$ S_{x_j x_j} = \sum({x_{ij} - \bar{x_j} })^2. $$
+
+$$ \frac{1}{1-R_j^2} $$
+
+is called **variance inflation factor**. The VIF quantifies the effect of collinearity on the variacne of our regression estimates.
+
+
+```{r}
+vif(hip_model)
+```
+
+```{r}
+set.seed(1337)
+noise = rnorm(n= nrow(seatpos), mean=0, sd=5)
+hip_model_noise = lm(hipcenter + noise ~ .,data=seatpos)
+
+coef(hip_model)
+coef(hip_model_noise)
+```
+How does collinearity effect prediction?
+```{r}
+plot(fitted(hip_model), fitted(hip_model_noise), col= "dodgerblue", pch =20, xlab="Predicted, Without Noise", ylab = "Predicted, With Noise", cex=1.5)
+abline(a= 0 , b=1, col="darkorange", lwd=2)
+```
+Try smaller model
+```{r}
+hip_model_small = lm(hipcenter~Age +Arm+Ht, data= seatpos)
+summary(hip_model_small)
+
+vif(hip_model_small)
+```
+```{r}
+anova(hip_model_small, hip_model)
+```
+
+Partial correlation coefficient of `HtShoes` and `hipcenter` with the effects of `Age`, `Arm`, and `Ht` removed
+```{r}
+ht_shoes_model_small = lm(HtShoes~Age + Arm +Ht, data=seatpos)
+
+cor(resid(ht_shoes_model_small), resid(hip_model_small))
+```
+Since this value is small, it means that the variation of `hipcenter` that is unexplained by `Age`, `Arm`, and `Ht` shows very little correlation with the variation of `HtShoes`. Thus, adding `HtShoes` to the model would likely be of little bnefit. \n\n
+
+Similarly a varaible added plot visualizes these residuals agains each other.
+```{r}
+plot(resid(hip_model_small)~resid(ht_shoes_model_small),
+     col="dodgerblue", pch=20,
+     xlab = "Residuals, Added Predictor",
+     ylab = "Residuals, Original Model")
+abline(h = 0, lty=2)
+abline(v=0, lty=2)
+abline(lm(resid(hip_model_small)~ resid(ht_shoes_model_small)), col="darkorange", lwd=2)
+
+```
+Here the variable added plot shows almost no linear relationship. Since `HtShoes`'s variation is largely expalined by the other predictors, adding ti to the model will only increase the variation of the estimates and make the model much harder to interpret.
+
+## 3. Simulation
+$$ Y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \epsilon $$
+where $\epsilon \sim N(\mu = 0, \sigma^2 =25) $
+```{r}
+set.seed(42)
+beta_0 = 7
+beta_1 = 3
+beta_2 = 4
+sigma = 5
+
+sample_size =10
+num_sim = 2500
+
+x1 = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+x2 = c(1, 2, 3, 4, 5, 7, 6, 10, 9, 8)
+
+c(sd(x1), sd(x2))
+cor(x1, x2)
+```
+First, we try with high collinearity.
+
+```{r}
+true_line_bad = beta_0 + beta_1 *x1 + beta_2*x2
+beta_hat_bad = matrix(0, num_sim, 2)
+mse_bad = rep(0, num_sim)
+```
+
+```{r}
+for(s in 1:num_sim){
+  y = true_line_bad + rnorm(n=sample_size, mean=0, sd=sigma)
+  reg_out = lm(y~x1+x2)
+  beta_hat_bad[s, ] = coef(reg_out)[-1]
+  mse_bad[s] = mean(resid(reg_out)^2)
+}
+```
+
+The situation without a collinearity issue.
+```{r}
+z1 = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+z2 = c(9, 2, 7, 4, 5, 6, 3, 8, 1, 10)
+c(sd(z1), sd(z2))
+cor(z1, z2)
+```
+```{r}
+true_line_good = beta_0 + beta_1*z1 + beta_2 * z2
+beta_hat_good = matrix(0, num_sim, 2)
+mse_good = rep(0, num_sim)
+```
+```{r}
+for(s in 1:num_sim){
+  y = true_line_good +rnorm(n=sample_size, mean=0, sd=sigma)
+  reg_out = lm(y~z1+z2)
+  beta_hat_good[s, ] = coef(reg_out)[-1]
+  mse_good[s] = mean(resid(reg_out)^2)
+}
+```
+
+The differences of the two models.
+```{r}
+par(mfrow= c(1,2))
+hist(beta_hat_bad[,1],
+     col="darkorange",
+     border = "dodgerblue",
+     main = expression("Hsitogram of " *hat(beta)[1]* " with collinearity"),
+     xlab = expression(hat(beta)[1]),
+     breaks=20)
+hist(beta_hat_good[, 1],
+     col = "darkorange",
+     border = "dodgerblue",
+     main = expression("Histogram of " *hat(beta)[1]* " without Collinearity"),
+     xlab = expression(hat(beta)[1]),
+     breaks = 20)
+```
+```{r}
+mean(beta_hat_bad[,1])
+mean(beta_hat_good[,1])
+```
+```{r}
+sd(beta_hat_bad[,1])
+sd(beta_hat_good[,1])
+```
+```{r}
+par(mfrow = c(1, 2))
+hist(beta_hat_bad[, 2],
+     col = "darkorange",
+     border = "dodgerblue",
+     main = expression("Histogram of " *hat(beta)[2]* " with Collinearity"),
+     xlab = expression(hat(beta)[2]),
+     breaks = 20)
+hist(beta_hat_good[, 2],
+     col = "darkorange",
+     border = "dodgerblue",
+     main = expression("Histogram of " *hat(beta)[2]* " without Collinearity"),
+     xlab = expression(hat(beta)[2]),
+     breaks = 20)
+```
+Same issue with $\hat\beta_2$
+
+```{r}
+par(mfrow = c(1, 2))
+hist(mse_bad,
+     col = "darkorange",
+     border = "dodgerblue",
+     main = "MSE, with Collinearity",
+     xlab = "MSE")
+hist(mse_good,
+     col = "darkorange",
+     border = "dodgerblue",
+     main = "MSE, without Collinearity",
+     xlab = "MSE")
+```
+Interestingly, in both cases, the MSE is roughly the same on average. Again, this is because collinearity effects a model's ability to explain, but not predict.
+```{r}
+mean(mse_bad)
+mean(mse_good)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
